@@ -1,0 +1,99 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score,mean_absolute_error,root_mean_squared_error
+import pickle
+
+# Load the data
+df = pd.read_csv('crop_yield.csv')
+
+# Separate features and target
+X = df[['Crop', 'Season', 'State', 'Area', 'Annual_Rainfall', 'Fertilizer', 'Pesticide']].copy()  # Use .copy()
+y = df['Yield']
+
+# Initialize label encoders for categorical variables
+le_crop = LabelEncoder()
+le_season = LabelEncoder()
+le_state = LabelEncoder()
+
+# Encode categorical variables
+X.loc[:, 'Crop_encoded'] = le_crop.fit_transform(X['Crop'])  # Use .loc
+X.loc[:, 'Season_encoded'] = le_season.fit_transform(X['Season'])  # Use .loc
+X.loc[:, 'State_encoded'] = le_state.fit_transform(X['State'])  # Use .loc
+
+# Create feature matrix with encoded variables
+X_encoded = X[['Crop_encoded', 'Season_encoded', 'State_encoded', 'Area', 'Annual_Rainfall', 'Fertilizer', 'Pesticide']].copy()  # Use .copy()
+
+# Initialize scaler
+scaler = StandardScaler()
+
+# Scale numerical features
+numerical_features = ['Area', 'Annual_Rainfall', 'Fertilizer', 'Pesticide']
+X_encoded.loc[:, numerical_features] = scaler.fit_transform(X_encoded[numerical_features])  # Use .loc
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(X_encoded, y, test_size=0.2, random_state=42)
+
+# List of models to train
+models = {
+    "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
+    "Linear Regression": LinearRegression(),
+    "Decision Tree": DecisionTreeRegressor(random_state=42),
+    "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=42),
+    "Support Vector": SVR(),
+    "K-Nearest Neighbors": KNeighborsRegressor()
+}
+
+# Train each model and save performance metrics
+performance_metrics = {}
+
+for model_name, model in models.items():
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    
+
+
+    r2 = r2_score(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    mae = mean_absolute_error(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
+    
+    performance_metrics[model_name] = {
+        'R2 Score': r2,
+        'RMSE': rmse,
+        'MAE': mae,
+        'MSE': mse,
+    }
+    
+    # Save the model
+    pickle.dump(model, open(f'{model_name.lower().replace(" ", "_")}_model.pkl', 'wb'))
+
+# Save the encoders and scaler
+
+pickle.dump(le_crop, open('crop_encoder.pkl', 'wb'))
+
+pickle.dump(le_season, open('season_encoder.pkl', 'wb'))
+pickle.dump(le_state, open('state_encoder.pkl', 'wb'))
+pickle.dump(scaler, open('scaler.pkl', 'wb'))
+
+
+# Save the feature names and their unique values for the Streamlit app
+feature_info = {
+    'models': list(models.keys()),
+    'crops': list(le_crop.classes_),
+    'seasons': list(le_season.classes_),
+    'states': list(le_state.classes_),
+    'performance_metrics': performance_metrics,
+    'scaler': scaler
+
+}
+
+pickle.dump(feature_info, open('feature_info.pkl', 'wb'))
+
+print("Models and encoders saved successfully!")
